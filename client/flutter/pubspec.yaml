@@ -1,0 +1,16 @@
+name: admin_flutter_client
+description: Flutter admin client for EduLearn
+publish_to: 'none'
+environment:
+  sdk: ">=2.19.0 <3.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^0.14.0
+  provider: ^6.0.0
+  cupertino_icons: ^1.0.2
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  uses-material-design: true
