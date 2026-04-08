@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /c/Users/isuru/Documents/project/company/learning-platform/client/lib/screens/dashboard/*.dart)",
+      "Bash(xargs cat:*)"
+    ]
+  }
+}

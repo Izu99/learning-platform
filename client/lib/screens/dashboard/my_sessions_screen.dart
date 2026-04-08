@@ -41,7 +41,7 @@ class _MySessionsScreenState extends State<MySessionsScreen> with SingleTickerPr
     if (user == null) return;
 
     try {
-      final endpoint = user.role == 'Teacher' ? '/bookings/teacher/${user.id}' : '/bookings/student/${user.id}';
+      final endpoint = user.role.toLowerCase() == 'teacher' ? '/bookings/teacher/${user.id}' : '/bookings/student/${user.id}';
       final response = await ApiService().get(endpoint) as List;
       if (mounted) {
         setState(() {
@@ -129,7 +129,9 @@ class _MySessionsScreenState extends State<MySessionsScreen> with SingleTickerPr
 
   String _fmt(String iso) {
     try {
-      return DateFormat('MMM dd, hh:mm a').format(DateTime.parse(iso).toLocal());
+      // Strip Z suffix so times are treated as local (times are stored as local wall-clock)
+      final localIso = iso.endsWith('Z') ? iso.replaceAll('Z', '') : iso;
+      return DateFormat('MMM dd, yyyy  hh:mm a').format(DateTime.parse(localIso));
     } catch (e) {
       return iso;
     }
@@ -239,7 +241,9 @@ class _RescheduleCard extends StatelessWidget {
 
   String _fmt(String iso) {
     try {
-      return DateFormat('MMM dd, hh:mm a').format(DateTime.parse(iso).toLocal());
+      // Strip Z suffix so times are treated as local (times are stored as local wall-clock)
+      final localIso = iso.endsWith('Z') ? iso.replaceAll('Z', '') : iso;
+      return DateFormat('MMM dd, yyyy  hh:mm a').format(DateTime.parse(localIso));
     } catch (e) {
       return iso;
     }

@@ -15,6 +15,7 @@ class Booking {
   final String? studentProfileImageUrl;
   final List<String>? studentInterests; // Added for teacher view
   final String? studentLevel; // Added for teacher view
+  final String? rescheduledBy; // 'teacher' or 'student'
 
   Booking({
     required this.id,
@@ -33,6 +34,7 @@ class Booking {
     this.studentProfileImageUrl,
     this.studentInterests,
     this.studentLevel,
+    this.rescheduledBy,
   });
 
   factory Booking.fromJson(Map<String, dynamic> json) {
@@ -74,6 +76,7 @@ class Booking {
       studentProfileImageUrl: studentImageUrl,
       studentInterests: studentInterests,
       studentLevel: studentLevel,
+      rescheduledBy: json['rescheduledBy'],
     );
   }
 
@@ -95,6 +98,7 @@ class Booking {
       'studentProfileImageUrl': studentProfileImageUrl,
       'studentInterests': studentInterests,
       'studentLevel': studentLevel,
+      'rescheduledBy': rescheduledBy,
     };
   }
 }

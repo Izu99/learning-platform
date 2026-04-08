@@ -50,11 +50,12 @@ class _SessionRequestsScreenState extends State<SessionRequestsScreen> {
     }
   }
 
-  Future<void> _updateStatus(String id, String status, {String? suggestedTime}) async {
+  Future<void> _updateStatus(String id, String status, {String? suggestedTime, String? scheduledTime}) async {
     try {
       final body = {'status': status};
       if (suggestedTime != null) body['suggestedTime'] = suggestedTime;
-      
+      if (scheduledTime != null) body['scheduledTime'] = scheduledTime;
+
       await ApiService().patch('/bookings/$id/status', body);
       _fetchRequests();
       
@@ -401,7 +402,9 @@ class _SessionRequestsScreenState extends State<SessionRequestsScreen> {
 
   String _fmt(String iso) {
     try {
-      return DateFormat('MMM dd, hh:mm a').format(DateTime.parse(iso).toLocal());
+      // Strip Z suffix so times are treated as local (times are stored as local wall-clock)
+      final localIso = iso.endsWith('Z') ? iso.replaceAll('Z', '') : iso;
+      return DateFormat('MMM dd, yyyy  hh:mm a').format(DateTime.parse(localIso));
     } catch (e) {
       return iso;
     }
@@ -617,7 +620,11 @@ class _SessionRequestsScreenState extends State<SessionRequestsScreen> {
           _buildInfoRow('Time', _fmt(request.scheduledTime)),
           if (request.status == 'Rescheduled' && request.suggestedTime != null) ...[
             const SizedBox(height: 12),
-            _buildInfoRow('Suggested', _fmt(request.suggestedTime!), valueColor: AppTheme.primaryGreen),
+            _buildInfoRow(
+              request.rescheduledBy == 'student' ? 'Student Suggests' : 'Suggested',
+              _fmt(request.suggestedTime!),
+              valueColor: AppTheme.primaryGreen,
+            ),
           ],
           const SizedBox(height: 12),
           _buildInfoRow('Status', request.status, 
@@ -699,10 +706,64 @@ class _SessionRequestsScreenState extends State<SessionRequestsScreen> {
                   child: _ActionButton(
                     label: 'Reschedule',
                     color: const Color(0xFF64748B),
-                    onTap: () => _showRescheduleDialog(request), 
+                    onTap: () => _showRescheduleDialog(request),
                   ),
                 ),
               ],
+            ),
+          ],
+
+          // Student requested a reschedule → teacher can accept or reject
+          if (request.status == 'Rescheduled' && request.rescheduledBy == 'student') ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.event_repeat_rounded, size: 16, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${request.studentName ?? 'Student'} requested a reschedule',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ActionButton(
+                          label: 'Accept New Time',
+                          color: AppTheme.primaryTeal,
+                          onTap: () => _updateStatus(
+                            request.id,
+                            'Accepted',
+                            scheduledTime: request.suggestedTime,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ActionButton(
+                          label: 'Reject',
+                          color: const Color(0xFFEF4444),
+                          onTap: () => _updateStatus(request.id, 'Rejected'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ],

@@ -69,16 +69,30 @@ exports.updateBookingStatus = async (req, res) => {
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
-    // VALIDATION: If accepting, check for double booking
+    // VALIDATION: If accepting, check for double booking (Accepted AND Pending)
     if (status === 'Accepted') {
+      const targetTime = scheduledTime || booking.scheduledTime;
       const overlapping = await Booking.findOne({
         teacherId: booking.teacherId,
-        scheduledTime: scheduledTime || booking.scheduledTime,
-        status: 'Accepted',
+        scheduledTime: targetTime,
+        status: { $in: ['Accepted', 'Pending'] },
         _id: { $ne: booking._id }
       });
       if (overlapping) {
-        return res.status(400).json({ message: 'You already have an accepted session at this time.' });
+        return res.status(400).json({ message: 'This time slot is already reserved or booked by another student.' });
+      }
+    }
+
+    // VALIDATION: If rescheduling, check suggestedTime doesn't conflict
+    if (status === 'Rescheduled' && suggestedTime) {
+      const conflicting = await Booking.findOne({
+        teacherId: booking.teacherId,
+        scheduledTime: suggestedTime,
+        status: { $in: ['Accepted', 'Pending'] },
+        _id: { $ne: booking._id }
+      });
+      if (conflicting) {
+        return res.status(400).json({ message: 'The suggested time conflicts with another existing booking.' });
       }
     }
 
@@ -89,33 +103,63 @@ exports.updateBookingStatus = async (req, res) => {
     if (scheduledTime) update.scheduledTime = scheduledTime;
     if (notes) update.notes = notes;
 
+    // Track who initiated the reschedule
+    if (status === 'Rescheduled') {
+      update.rescheduledBy = req.user.role === 'teacher' ? 'teacher' : 'student';
+    }
+
     // AUTO-GENERATE MEETING LINK ON ACCEPT
     if (status === 'Accepted' && (!booking.meetingLink || scheduledTime)) {
       const roomId = `EmuLearn_${booking._id.toString().substring(0, 8)}_${Date.now().toString().substring(7)}`;
       update.meetingLink = `https://meet.jit.si/${roomId}`;
       update.meetingPassword = crypto.randomBytes(4).toString('hex'); // 8 char random hex
     }
-    
+
     const updatedBooking = await Booking.findByIdAndUpdate(
       req.params.id,
       update,
       { new: true }
     ).populate('studentId', 'name profileImageUrl').populate('teacherId', 'name');
 
-    // NOTIFY STUDENT OF STATUS CHANGE
-    let notifTitle = 'Booking Update';
-    let notifMsg = `Your booking for ${updatedBooking.topic} has been ${status.toLowerCase()}.`;
-    let notifType = 'booking_status';
+    // NOTIFY the correct party based on who acted
+    const isStudentAction = req.user.role !== 'teacher';
+    let notifRecipient, notifSender, notifTitle, notifMsg, notifType;
 
     if (status === 'Rescheduled') {
-      notifTitle = 'Session Rescheduled';
-      notifMsg = `${updatedBooking.teacherId?.name || 'The teacher'} has suggested a new time: ${suggestedTime}.`;
       notifType = 'reschedule';
+      if (isStudentAction) {
+        // Student rescheduled → notify teacher
+        notifRecipient = updatedBooking.teacherId._id;
+        notifSender = updatedBooking.studentId._id;
+        notifTitle = 'Student Requested Reschedule';
+        notifMsg = `${updatedBooking.studentId?.name || 'A student'} has requested to reschedule the ${updatedBooking.topic} session to ${suggestedTime}.`;
+      } else {
+        // Teacher rescheduled → notify student
+        notifRecipient = updatedBooking.studentId._id;
+        notifSender = updatedBooking.teacherId._id;
+        notifTitle = 'Session Rescheduled';
+        notifMsg = `${updatedBooking.teacherId?.name || 'Your teacher'} has suggested a new time for your ${updatedBooking.topic} session: ${suggestedTime}.`;
+      }
+    } else {
+      notifType = 'booking_status';
+      if (isStudentAction) {
+        // Student accepted/rejected teacher's reschedule → notify teacher
+        notifRecipient = updatedBooking.teacherId._id;
+        notifSender = updatedBooking.studentId._id;
+        notifTitle = 'Student Responded to Reschedule';
+        notifMsg = `${updatedBooking.studentId?.name || 'A student'} has ${status.toLowerCase()} the rescheduled time for ${updatedBooking.topic}.`;
+      } else {
+        // Teacher accepted/rejected → notify student
+        notifRecipient = updatedBooking.studentId._id;
+        notifSender = updatedBooking.teacherId._id;
+        notifTitle = 'Booking Update';
+        notifMsg = `Your booking for ${updatedBooking.topic} has been ${status.toLowerCase()}.`;
+      }
     }
 
     await createInternalNotification({
-      recipient: updatedBooking.studentId._id,
-      sender: updatedBooking.teacherId._id,
+      recipient: notifRecipient,
+      sender: notifSender,
       title: notifTitle,
       message: notifMsg,
       type: notifType,

@@ -14,6 +14,7 @@ const bookingSchema = new mongoose.Schema({
   notes: String,
   meetingLink: { type: String }, // Auto-generated Jitsi Link
   meetingPassword: { type: String }, // For secure access
+  rescheduledBy: { type: String, enum: ['teacher', 'student'] }, // Who initiated the reschedule
   createdAt: { type: Date, default: Date.now }
 });
 
