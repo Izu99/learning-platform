@@ -1,5 +1,5 @@
 
-class AppConstants {
+class AppConstants { 
   /// VPS production API — nginx at 82.25.180.20 proxies /learning/ → backend:5005
   static const String _vpsBaseUrl = 'http://82.25.180.20/learning/api';
 
